@@ -1,0 +1,60 @@
+name: Release
+
+# Manual only: publishing is an outward action. Bump `version` in package.json and
+# CHANGELOG.md on main first, then run this workflow from main.
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: 'Where to publish'
+        type: choice
+        options: [both, vs-marketplace, open-vsx]
+        default: both
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - name: Package
+        id: pkg
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          npm run package -- --out "anakin-$VERSION.vsix"
+      - name: Integration tests against the packaged .vsix
+        run: xvfb-run -a npm run test:integration
+        env:
+          ANAKIN_VSIX: anakin-${{ steps.pkg.outputs.version }}.vsix
+
+      # VSCE_PAT: Azure DevOps PAT scoped to the publisher's organization with
+      # Marketplace > Manage (global PATs stop working on 1 Dec 2026).
+      - name: Publish to Visual Studio Marketplace
+        if: inputs.targets != 'open-vsx'
+        run: npx vsce publish --packagePath "anakin-${{ steps.pkg.outputs.version }}.vsix"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      # OVSX_PAT: access token from open-vsx.org/user-settings/tokens for the `anakin` namespace.
+      - name: Publish to Open VSX
+        if: inputs.targets != 'vs-marketplace'
+        run: npx ovsx publish "anakin-${{ steps.pkg.outputs.version }}.vsix"
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+      - name: Tag and attach the .vsix to a GitHub release
+        run: gh release create "v${{ steps.pkg.outputs.version }}" "anakin-${{ steps.pkg.outputs.version }}.vsix" --title "v${{ steps.pkg.outputs.version }}" --notes-file CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ github.token }}

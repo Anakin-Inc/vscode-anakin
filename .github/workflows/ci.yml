@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (VS Code ${{ matrix.vscode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # engines.vscode minimum and current stable
+        vscode: ['1.101.0', 'stable']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run package -- --out anakin.vsix
+      - name: Integration tests against the packaged .vsix
+        run: xvfb-run -a npm run test:integration
+        env:
+          VSCODE_VERSION: ${{ matrix.vscode }}
+          ANAKIN_VSIX: anakin.vsix
+      - uses: actions/upload-artifact@v4
+        if: matrix.vscode == 'stable'
+        with:
+          name: vsix
+          path: anakin.vsix
+          if-no-files-found: error

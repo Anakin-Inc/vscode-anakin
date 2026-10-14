@@ -1,0 +1,15 @@
+{
+  "name": "anakin-test-fixture",
+  "displayName": "Anakin integration test fixture",
+  "description": "Development-only extension that hosts the integration tests. Not published.",
+  "version": "0.0.0",
+  "publisher": "anakin-test",
+  "private": true,
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "enabledApiProposals": [
+    "mcpServerDefinitions"
+  ],
+  "main": "./out/noop.js"
+}
